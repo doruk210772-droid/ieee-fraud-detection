@@ -17,3 +17,8 @@ models/
 *.joblib
 __pycache__/
 .ipynb_checkpoints/
+data/
+models/
+*.joblib
+__pycache__/
+.ipynb_checkpoints/
