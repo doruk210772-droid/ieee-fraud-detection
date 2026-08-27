@@ -9,43 +9,42 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-
 def reduce_mem_usage(df: pd.DataFrame, verbose: bool = True) -> pd.DataFrame:
-    """
-    Iterates through numeric columns of a dataframe and downcasts datatypes
-    to reduce the memory footprint without precision loss for model training.
-    """
+    """Safely reduce memory usage across numeric columns, handling modern pandas string types."""
     start_mem = df.memory_usage().sum() / 1024**2
 
     for col in df.columns:
-        col_type = df[col].dtype
+        # 1. Skip non-numeric columns explicitly using pandas type checkers
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            continue
 
-        if col_type != object and not pd.api.types.is_datetime64_any_dtype(df[col]):
+        # 2. Handle Integer columns
+        if pd.api.types.is_integer_dtype(df[col]):
             c_min = df[col].min()
             c_max = df[col].max()
+            if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                df[col] = df[col].astype(np.int8)
+            elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                df[col] = df[col].astype(np.int16)
+            elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                df[col] = df[col].astype(np.int32)
+            elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
+                df[col] = df[col].astype(np.int64)
 
-            if str(col_type)[:3] == "int":
-                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-                    df[col] = df[col].astype(np.int8)
-                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-                    df[col] = df[col].astype(np.int16)
-                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-                    df[col] = df[col].astype(np.int32)
-                elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
-                    df[col] = df[col].astype(np.int64)
+        # 3. Handle Float columns
+        elif pd.api.types.is_float_dtype(df[col]):
+            c_min = df[col].min()
+            c_max = df[col].max()
+            if c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+                df[col] = df[col].astype(np.float32)
             else:
-                if c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
-                    df[col] = df[col].astype(np.float32)
-                else:
-                    df[col] = df[col].astype(np.float64)
+                df[col] = df[col].astype(np.float64)
 
     end_mem = df.memory_usage().sum() / 1024**2
     if verbose:
-        reduction = 100 * (start_mem - end_mem) / start_mem
-        print(f"Memory usage decreased to {end_mem:.2f} MB ({reduction:.1f}% reduction)")
+        print(f"Memory usage decreased to {end_mem:.2f} MB ({100 * (start_mem - end_mem) / start_mem:.1f}% reduction)")
 
     return df
-
 
 def load_raw_dataset(
     data_dir: str = "data/raw",

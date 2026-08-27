@@ -57,8 +57,15 @@ def main():
     # ---------------------------------------------------------
     # 3. LOAD & ENGINEER TEST DATA
     # ---------------------------------------------------------
-    print("\n[Step 3/4] Loading and engineering test dataset...")
-    df_test_raw = load_raw_dataset(data_dir=data_dir, split="test", nrows=None)
+    print("[Step 3/4] Loading and engineering test dataset...")
+    
+    # Use the exact same data_dir you used for the train set
+    df_test_raw = load_raw_dataset(data_dir="data/raw", split="test")
+    
+    # Apply the column name fix
+    df_test_raw.columns = df_test_raw.columns.str.replace('-', '_')
+    
+    # Continue with feature engineering
     df_test_fe = build_feature_pipeline(df_test_raw)
 
     # Align test feature columns exactly with train

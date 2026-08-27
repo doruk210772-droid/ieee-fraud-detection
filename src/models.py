@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from lightgbm import LGBMClassifier
+from lightgbm import LGBMClassifier, early_stopping
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
 
@@ -8,19 +8,6 @@ from sklearn.model_selection import TimeSeriesSplit
 def train_lgb_time_series(df, target_col="isFraud", drop_cols=None, n_splits=5, custom_params=None):
     """
     Trains a LightGBM model using TimeSeriesSplit cross-validation.
-    
-    Parameters:
-    -----------
-    df : pd.DataFrame
-        Engineered feature matrix.
-    target_col : str
-        Name of the binary target column.
-    drop_cols : list
-        Columns to exclude from training features.
-    n_splits : int
-        Number of time-series splits for validation.
-    custom_params : dict
-        Optional hyperparameter dictionary to override defaults.
     """
     if drop_cols is None:
         drop_cols = ["TransactionID", "TransactionDT", target_col]
@@ -36,21 +23,21 @@ def train_lgb_time_series(df, target_col="isFraud", drop_cols=None, n_splits=5, 
     for col in cat_cols:
         X[col] = X[col].astype("category")
 
-    # Optuna-optimized default hyperparameters
+    # Updated with Optuna-tuned hyperparameters
     default_params = {
-        "n_estimators": 700,
-        "learning_rate": 0.03,
-        "num_leaves": 63,
-        "max_depth": 8,
-        "min_child_samples": 40,
-        "subsample": 0.8,
+        "n_estimators": 2000,                  # High limit; early stopping handles actual cutoff
+        "learning_rate": 0.04741152534600556,  # Optuna tuned
+        "num_leaves": 105,                     # Optuna tuned
+        "max_depth": 10,                       # Optuna tuned
+        "subsample": 0.7059254343566387,       # Optuna tuned
         "subsample_freq": 1,
-        "colsample_bytree": 0.7,
+        "colsample_bytree": 0.6421827033391952, # Optuna tuned
+        "min_child_samples": 40,
         "reg_alpha": 0.1,
         "reg_lambda": 1.0,
         "random_state": 42,
         "n_jobs": -1,
-        "verbosity": -1,  # Suppresses positive split gain warning logs
+        "verbosity": -1,                       # Suppresses positive split gain warning logs
     }
 
     # Override defaults if custom hyperparameter dictionary is provided
@@ -70,12 +57,12 @@ def train_lgb_time_series(df, target_col="isFraud", drop_cols=None, n_splits=5, 
 
         model = LGBMClassifier(**default_params)
         
+        # Fit with early stopping callback
         model.fit(
             X_train,
             y_train,
-            eval_X=X_val,
-            eval_y=y_val,
-            callbacks=[],
+            eval_set=[(X_val, y_val)],
+            callbacks=[early_stopping(stopping_rounds=50, verbose=False)],
         )
 
         val_preds = model.predict_proba(X_val)[:, 1]
